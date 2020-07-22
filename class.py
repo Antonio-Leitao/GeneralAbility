@@ -70,7 +70,7 @@ class GEN_NN_benchmark_:
         self.X_train = StandardScaler().fit_transform(self.X_train)
         self.y_train = StandardScaler().fit_transform(self.y_train.reshape(-1, 1))
 
-        self.X_test = StandardScaler().fit_transform(self.X_train)
+        self.X_test = StandardScaler().fit_transform(self.X_test)
         self.y_test = StandardScaler().fit_transform(self.y_test.reshape(-1, 1))
 
         self.d_matrix = distance_matrix(self.X_train, self.X_test)
@@ -98,9 +98,13 @@ class GEN_NN_benchmark_:
                     self.build(X, y, .33, seed)
                     history = self.model.fit(self.X_train, self.y_train, validation_data=[self.X_test, self.y_test],
                                              epochs=epochs, batch_size=16, verbose=0, callbacks=[self.callback])
-                    self.results.append([seed, history])
+                    self.results.append([seed, history.history])
+
+                    return self.results
 
 
-test = GEN_NN_benchmark_(model_create, [[1, 'relu'], ['1', 'linear']], 'mse', ['mae'], Generalization)
+test = GEN_NN_benchmark_(model_create, [[1, 'relu'], [1, 'linear']], 'mse', ['mae'], Generalization)
 
-test.benchmark([1], [20], ['BIOAVAILABILITY'])
+t = test.benchmark([1], 20, ['BIOAVAILABILITY'])
+
+print(t)
