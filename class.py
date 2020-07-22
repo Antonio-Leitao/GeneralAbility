@@ -1,4 +1,5 @@
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
@@ -26,9 +27,8 @@ def model_create(shape, loss, metrics, X_shape):
     return model
 
 
-def custom_loss_1(train, d_matrix):
+def custom_loss_1(d_matrix):
     def loss(y_true, y_pred):
-        # X_train = train[0]
 
         dist = K.equal(y_true, d_matrix[:, -1])
         b = tf.boolean_mask(d_matrix[:, :-1], dist)
@@ -36,20 +36,15 @@ def custom_loss_1(train, d_matrix):
         k = y_pred.shape[0]
 
         if not k:
-            k=1
+            k = 1
+            return K.mean(K.abs(y_true - y_pred))
 
         distances = K.repeat_elements(K.flatten(b), rep=k, axis=0)
 
         distances = K.cast(distances, dtype='float32')
 
-        print(y_pred.shape)
-        print(K.repeat_elements(K.abs(y_true - y_pred), rep=k, axis=0).shape)
-        print(K.concatenate([K.abs(y_true - y_pred)] * k, axis=-1).shape)
-        print(distances.shape)
-        print('\n')
-
-        estimation = K.exp(-(K.repeat_elements(K.abs(y_true - y_pred), rep=k, axis=0) - K.concatenate(
-            [K.abs(y_true - y_pred)] * k, axis=-1)) / (1 + distances))
+        estimation = K.exp(-(K.abs(K.repeat_elements(K.abs(y_true - y_pred), rep=k, axis=0) -
+                                   K.concatenate([K.abs(y_true - y_pred)] * k, axis=-1)) / (1 + distances)))
 
         score = K.reshape(estimation, shape=(k, k))
 
@@ -58,32 +53,6 @@ def custom_loss_1(train, d_matrix):
         mul = K.abs(y_true - y_pred) * top
 
         return K.mean(mul)
-    return loss
-
-def custom_loss_2(train, d_matrix):
-    def loss(y_true, y_pred):
-        X_train = train[0]
-        n = K.shape(y_pred)[0:1]
-        k = len(X_train)
-        print(n, k)
-
-        NN = np.array([np.argsort(d_matrix[:, i], axis=0)[:k] for i in range(d_matrix.shape[1])])
-
-        estimation = (K.repeat_elements(K.abs(y_true-y_pred), rep=k, axis=0)-K.concatenate([K.abs(y_true-y_pred)] * n, axis=-1))
-
-        print(estimation)
-
-        p_x = K.mean(K.exp(-estimation))
-
-        K.mean(K.abs(y_pred - y_true)*p_x)
-
-        e = [K.mean([K.exp(
-            -np.divide(K.abs(K.abs(y_pred[i] - y_true[i]) - K.abs(y_pred[j] - y_true[j])),
-                       d_matrix[j, i] + 1)) for j in NN[i]]) for i in range(y_true.shape[1])]
-        M = K.abs(y_pred - y_true) * e
-        score = K.mean(M)
-
-        return score
 
     return loss
 
@@ -140,14 +109,24 @@ class GEN_NN_benchmark:
         self.X_train = StandardScaler().fit_transform(self.X_train)
         self.y_train = StandardScaler().fit_transform(self.y_train.reshape(-1, 1))
 
+        self.batch_size = int(len(self.X_train)/4)
+
         self.X_test = StandardScaler().fit_transform(self.X_test)
         self.y_test = StandardScaler().fit_transform(self.y_test.reshape(-1, 1))
 
         self.d_matrix = np.c_[distance_matrix(self.X_train, self.X_train), self.y_train]
 
-        self.model = self.model_function(self.model_shape, self.loss(self.X_train, self.d_matrix), self.metric, (self.X_train.shape[1],))
+        if not isinstance(self.loss, str):
+            built_loss = self.loss(self.d_matrix)
+        else:
+            built_loss = self.loss
 
-        self.callback = self.callback(train=(self.X_train, self.y_train), test=(self.X_test, self.y_test), d_matrix=self.d_matrix)
+
+        self.model = self.model_function(self.model_shape, built_loss, self.metric,
+                                         (self.X_train.shape[1],))
+
+        self.callback = self.callback(train=(self.X_train, self.y_train), test=(self.X_test, self.y_test),
+                                      d_matrix=self.d_matrix)
 
     def benchmark(self, seeds, epochs, datasets, example=0):
 
@@ -167,12 +146,12 @@ class GEN_NN_benchmark:
                 for seed in seeds:
                     self.build(X, y, .33, seed)
                     history = self.model.fit(self.X_train, self.y_train, validation_data=(self.X_test, self.y_test),
-                                             epochs=epochs, batch_size=16, verbose=1, callbacks=[self.callback])
+                                             epochs=epochs, batch_size=self.batch_size, verbose=1, callbacks=[self.callback])
                     self.results.append([seed, history.history])
 
                     return self.results
 
 
-test = GEN_NN_benchmark(model_create, [[10, 'relu']*5, [1, 'linear']], custom_loss_1, ['mae'], Generalization)
+test = GEN_NN_benchmark(model_create, [[10, 'relu'] * 5, [1, 'linear']], custom_loss_1, ['mae'], Generalization)
 
-t = test.benchmark([1], 20, ['BIOAVAILABILITY'])
+t = test.benchmark([1], 200, ['Concrete'])
