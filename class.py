@@ -27,28 +27,25 @@ def model_create(shape, loss, metrics, X_shape):
     return model
 
 
-def custom_loss_1(d_matrix):
+def custom_loss_1(d_matrix, batch_size):
     def loss(y_true, y_pred):
+        # X_train = train[0]
 
-        dist = K.equal(y_true, d_matrix[:, -1])
-        b = tf.boolean_mask(d_matrix[:, :-1], dist)
+        # dist = K.equal(y_true, d[:,-1])
+        # b = tf.boolean_mask(d[:,:-1], dist)
 
-        k = y_pred.shape[0]
 
-        if not k:
-            k = 1
-            return K.mean(K.abs(y_true - y_pred))
+        batch_size = K.int_shape(y_pred)[0]
 
-        distances = K.repeat_elements(K.flatten(b), rep=k, axis=0)
 
-        distances = K.cast(distances, dtype='float32')
+        # distances = K.repeat_elements(K.flatten(b), rep=k, axis=0)
 
-        estimation = K.exp(-(K.abs(K.repeat_elements(K.abs(y_true - y_pred), rep=k, axis=0) -
-                                   K.concatenate([K.abs(y_true - y_pred)] * k, axis=-1)) / (1 + distances)))
+        # distances = K.cast(distances, dtype='float32')
 
-        score = K.reshape(estimation, shape=(k, k))
+        estimation = K.exp(-(K.abs(
+            K.transpose(K.abs(y_true - y_pred)) - K.abs(y_true - y_pred))))
 
-        top = K.mean(score, axis=1)
+        top = K.mean(estimation, axis=1)
 
         mul = K.abs(y_true - y_pred) * top
 
@@ -117,7 +114,7 @@ class GEN_NN_benchmark:
         self.d_matrix = np.c_[distance_matrix(self.X_train, self.X_train), self.y_train]
 
         if not isinstance(self.loss, str):
-            built_loss = self.loss(self.d_matrix)
+            built_loss = self.loss(self.d_matrix, self.batch_size)
         else:
             built_loss = self.loss
 
@@ -154,4 +151,8 @@ class GEN_NN_benchmark:
 
 test = GEN_NN_benchmark(model_create, [[10, 'relu'] * 5, [1, 'linear']], custom_loss_1, ['mae'], Generalization)
 
-t = test.benchmark([1], 200, ['Concrete'])
+import time
+
+tik = time.time()
+t = test.benchmark([1], 20, ['Concrete'])
+print(time.time() - tik)
