@@ -9,7 +9,6 @@ def get_proba(X,n_neighbors=15):
   P = np.zeros([len(X), len(X)])
   for i in range(len(X)):
     kde = KernelDensity().fit(X[idx[i]])
-    probs = np.exp(kde.score_samples(X))
-    P[i,:] = probs
+    P[i,:] = np.exp(kde.score_samples(X))
   
   return np.sum(P,axis=1)/np.max(np.sum(P,axis=1))
