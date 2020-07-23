@@ -48,8 +48,8 @@ class keras_benchmark:
     def benchmark(self, seeds, epochs, datasets, filename, example=0):
 
         if example:
-            self.X = example[:-1]
-            self.y = example[-1]
+            self.X = example[0]
+            self.y = example[1].reshape(-1,1)
 
             for seed in seeds:
                 self.build()
@@ -60,9 +60,9 @@ class keras_benchmark:
 
                 train_pred = self.compiled_model.predict(self.X_train).flatten()
                 test_pred = self.compiled_model.predict(self.X_test).flatten()
-                test_p_x = history.history['p_score'][-1].flatten()
+                test_p_x = history.history['p_score'][-1]
 
-                self.results.append([seed, 'example', train_pred, test_pred, test_p_x])
+                self.results.append([seed, filename, train_pred, test_pred, test_p_x])
 
                 np.save('results/' + filename, self.results)
 
@@ -78,6 +78,7 @@ class keras_benchmark:
             self.y = data[data.columns[-1]].values.reshape(-1, 1)
 
             for seed in seeds:
+                self.partition_seed = seed
                 self.build()
                 history = self.compiled_model.fit(self.X_train, self.y_train,
                                                   # validation_data=(self.X_test, self.y_test),
@@ -86,7 +87,7 @@ class keras_benchmark:
 
                 train_pred = self.compiled_model.predict(self.X_train).flatten()
                 test_pred = self.compiled_model.predict(self.X_test).flatten()
-                test_p_x = history.history['p_score'][-1].flatten()
+                test_p_x = history.history['p_score'][-1]
 
                 self.results.append([seed, dataset, train_pred, test_pred, test_p_x])
 
