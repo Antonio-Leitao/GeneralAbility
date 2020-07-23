@@ -6,69 +6,90 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 
-class benchmark:
-    def __init__(self, model_function, model_shape, loss_function, metrics, callback):
+class keras_benchmark:
+    def __init__(self, model_function, model_shape, loss, callback, metrics, partition_ratio, partition_seed):
+        self.model = model_function
         self.model_shape = model_shape
-        self.loss = loss_function
-        self.metric = metrics
-        self.model_function = model_function
+        self.loss_function = loss
+        self.metrics = metrics
         self.results = []
         self.callback = callback
+        self.partition_ratio = partition_ratio
+        self.partition_seed = partition_seed
 
-    def build(self, X, y, partition_ratio, partition_seed):
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=partition_ratio,
-                                                                                random_state=partition_seed)
+    def build(self):
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y,
+                                                                                test_size=self.partition_ratio,
+                                                                                random_state=self.partition_seed)
 
         self.X_train = StandardScaler().fit_transform(self.X_train)
         self.y_train = StandardScaler().fit_transform(self.y_train.reshape(-1, 1))
 
-        self.batch_size = int(len(self.X_train)/4)
+        self.batch_size = int(len(self.X_train))
 
         self.X_test = StandardScaler().fit_transform(self.X_test)
         self.y_test = StandardScaler().fit_transform(self.y_test.reshape(-1, 1))
 
-        self.d_matrix = np.c_[distance_matrix(self.X_train, self.X_train), self.y_train]
+        self.d_train = np.c_[
+            distance_matrix(np.c_[self.X_train, self.y_train], np.c_[self.X_train, self.y_train]), self.y_train]
 
-        if not isinstance(self.loss, str):
-            built_loss = self.loss(self.d_matrix, self.batch_size)
+        self.d_test = distance_matrix(self.y_train, self.y_test)
+
+        if not isinstance(self.loss_function, str):
+            built_loss = self.loss_function(self.d_train)
         else:
-            built_loss = self.loss
+            built_loss = self.loss_function
 
+        self.call = self.callback(train=(self.X_train, self.y_train), test=(self.X_test, self.y_test),
+                                  d_matrix=self.d_test)
 
-        self.model = self.model_function(self.model_shape, built_loss, self.metric,
-                                         (self.X_train.shape[1],))
+        self.compiled_model = self.model(self.model_shape, built_loss, self.metrics)
 
-        self.callback = self.callback(train=(self.X_train, self.y_train), test=(self.X_test, self.y_test),
-                                      d_matrix=self.d_matrix)
-
-    def benchmark(self, seeds, epochs, datasets, example=0):
+    def benchmark(self, seeds, epochs, datasets, filename, example=0):
 
         if example:
-            print('a')
+            self.X = example[:-1]
+            self.y = example[-1]
 
-        else:
-            for dataset in datasets:
-                if dataset == 'RESID_BUILD_SALE_PRICE':
-                    data = pd.read_csv('data\\' + dataset + '.txt', header=None, sep='     ', error_bad_lines=False)
-                else:
-                    data = pd.read_csv('data\\' + dataset + '.txt', header=None, sep='\t', error_bad_lines=False)
+            for seed in seeds:
+                self.build()
+                history = self.compiled_model.fit(self.X_train, self.y_train,
+                                                  # validation_data=(self.X_test, self.y_test),
+                                                  epochs=epochs, batch_size=self.batch_size, verbose=0,
+                                                  callbacks=[self.call])
 
-                X = data[data.columns[:-1]].values
-                y = data[data.columns[-1]].values.reshape(-1, 1)
+                train_pred = self.compiled_model.predict(self.X_train).flatten()
+                test_pred = self.compiled_model.predict(self.X_test).flatten()
+                test_p_x = history.history['p_score'][-1].flatten()
 
-                for seed in seeds:
-                    self.build(X, y, .33, seed)
-                    history = self.model.fit(self.X_train, self.y_train, validation_data=(self.X_test, self.y_test),
-                                             epochs=epochs, batch_size=self.batch_size, verbose=1, callbacks=[self.callback])
-                    self.results.append([seed, history.history])
+                self.results.append([seed, 'example', train_pred, test_pred, test_p_x])
 
-                    return self.results
+                np.save('results/' + filename, self.results)
 
+            return self.results
 
-test = GEN_NN_benchmark(model_create, [[10, 'relu'] * 5, [1, 'linear']], custom_loss_1, ['mae'], Generalization)
+        for dataset in datasets:
+            if dataset == 'RESID_BUILD_SALE_PRICE':
+                data = pd.read_csv('data\\' + dataset + '.txt', header=None, sep='     ', error_bad_lines=False)
+            else:
+                data = pd.read_csv('data\\' + dataset + '.txt', header=None, sep='\t', error_bad_lines=False)
 
-import time
+            self.X = data[data.columns[:-1]].values
+            self.y = data[data.columns[-1]].values.reshape(-1, 1)
 
-tik = time.time()
-t = test.benchmark([1], 20, ['Concrete'])
-print(time.time() - tik)
+            for seed in seeds:
+                self.build()
+                history = self.compiled_model.fit(self.X_train, self.y_train,
+                                                  # validation_data=(self.X_test, self.y_test),
+                                                  epochs=epochs, batch_size=self.batch_size, verbose=0,
+                                                  callbacks=[self.call])
+
+                train_pred = self.compiled_model.predict(self.X_train).flatten()
+                test_pred = self.compiled_model.predict(self.X_test).flatten()
+                test_p_x = history.history['p_score'][-1].flatten()
+
+                self.results.append([seed, dataset, train_pred, test_pred, test_p_x])
+
+                np.save('results/' + filename, self.results)
+
+            return self.results
