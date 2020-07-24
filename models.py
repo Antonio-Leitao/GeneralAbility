@@ -2,8 +2,6 @@ from tensorflow.keras import models
 from tensorflow.keras import layers
 
 
-
-
 def keras_model(shape, loss, metrics):
     model = models.Sequential()
 

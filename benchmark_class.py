@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 
 from scipy.spatial import distance_matrix
 from sklearn.preprocessing import StandardScaler
@@ -7,7 +8,7 @@ from sklearn.model_selection import train_test_split
 
 
 class keras_benchmark:
-    def __init__(self, model_function, model_shape, loss, callback, metrics, partition_ratio, partition_seed):
+    def __init__(self, model_function, model_shape, loss, callback, metrics, partition_ratio):
         self.model = model_function
         self.model_shape = model_shape
         self.loss_function = loss
@@ -15,7 +16,7 @@ class keras_benchmark:
         self.results = []
         self.callback = callback
         self.partition_ratio = partition_ratio
-        self.partition_seed = partition_seed
+
 
     def build(self):
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y,
@@ -30,8 +31,10 @@ class keras_benchmark:
         self.X_test = StandardScaler().fit_transform(self.X_test)
         self.y_test = StandardScaler().fit_transform(self.y_test.reshape(-1, 1))
 
-        self.d_train = np.c_[
-            distance_matrix(np.c_[self.X_train, self.y_train], np.c_[self.X_train, self.y_train]), self.y_train]
+        #self.d_train = np.c_[
+        #    distance_matrix(np.c_[self.X_train, self.y_train], np.c_[self.X_train, self.y_train]), self.y_train]
+
+        self.d_train = distance_matrix(self.X_train, self.X_train)
 
         self.d_test = distance_matrix(self.y_train, self.y_test)
 
@@ -45,13 +48,14 @@ class keras_benchmark:
 
         self.compiled_model = self.model(self.model_shape, built_loss, self.metrics)
 
-    def benchmark(self, seeds, epochs, datasets, filename, example=0):
+    def benchmark(self, seeds, epochs, datasets, filename, partition_seed, example=0):
 
         if example:
             self.X = example[0]
             self.y = example[1].reshape(-1,1)
 
-            for seed in seeds:
+            for i, seed in enumerate(seeds):
+                self.partition_seed = partition_seed[i]
                 self.build()
                 history = self.compiled_model.fit(self.X_train, self.y_train,
                                                   # validation_data=(self.X_test, self.y_test),
@@ -77,7 +81,8 @@ class keras_benchmark:
             self.X = data[data.columns[:-1]].values
             self.y = data[data.columns[-1]].values.reshape(-1, 1)
 
-            for seed in seeds:
+            for i, seed in enumerate(seeds):
+                self.partition_seed = partition_seed[i]
                 self.partition_seed = seed
                 self.build()
                 history = self.compiled_model.fit(self.X_train, self.y_train,

@@ -1,5 +1,6 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
+import numpy as np
 
 
 def gen_loss(distance_matrix):
@@ -19,19 +20,22 @@ def gen_loss(distance_matrix):
     return loss
 
 
-def density_prob(distance_matrix):
-    distances = K.constant(distance_matrix, name='distance_matrix')
-
-    density_score = K.mean(K.exp(-distances), axis=1)
+def density_prob(matrix):
+    density_score = np.mean(np.exp(-matrix), axis=1)
 
     return density_score
 
 
 def density_loss(density_score):
+    d_score = density_prob(density_score)
     def loss(y_true, y_pred):
 
-        score = K.abs(y_true - y_pred) * density_score
+        score = K.abs(y_true - y_pred) * d_score
 
         return K.mean(score)
 
     return loss
+
+
+
+

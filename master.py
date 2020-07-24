@@ -8,35 +8,33 @@ from benchmark_class import keras_benchmark
 
 from sklearn.datasets import make_regression
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Keras não incomodar com logs
 
-partition_ratio = .33
-partition_seed = 42
-
-model_shape = [[10, 'relu'] * 5, [1, 'linear']]
+model_shape = [[4, 'relu'] * 4, [1, 'linear']]
 metrics = ['mae']
 
 
-X, y = make_regression(2000, 20)
-data = [X, y]
+X, y = make_regression(1000, 20)
+data = []#[X, y]
+partition_ratio = .33
 
-epochs = 200
-seeds = range(100)
-datasets = []
+epochs = 100
+seeds = range(10)
+partition_seed = seeds
+datasets = ['CONCRETE']
 
 print('custom')
-filename = 'make_regression_custom'
-benchmark_k = keras_benchmark(keras_model, model_shape, gen_loss, gen_score, metrics, partition_ratio, partition_seed)
+filename = 'make_regression_density_custom'
+benchmark_k = keras_benchmark(keras_model, model_shape, density_loss, gen_score, metrics, partition_ratio)
 
 tik = time.time()
-t = benchmark_k.benchmark(seeds, epochs, datasets, filename, example=data)
+t = benchmark_k.benchmark(seeds, epochs, datasets, filename, partition_seed, example=data)
 print(time.time() - tik)
 
 print('control')
-filename = 'make_regression_control'
+filename = 'make_regression_density_control'
 
-benchmark_k = keras_benchmark(keras_model, model_shape, 'mae', gen_score, metrics, partition_ratio, partition_seed)
+benchmark_k = keras_benchmark(keras_model, model_shape, 'mae', gen_score, metrics, partition_ratio)
 
 tik = time.time()
-t = benchmark_k.benchmark(seeds, epochs, datasets, filename, example=data)
+t = benchmark_k.benchmark(seeds, epochs, datasets, filename, partition_seed, example=data)
 print(time.time() - tik)

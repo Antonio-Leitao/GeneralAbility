@@ -32,4 +32,5 @@ class gen_score(tf.keras.callbacks.Callback):
 
         logs['gen_score'] = np.round(score, 5)
         logs['p_score'] = p_x
+        print(logs['gen_score'], np.mean(p_x), logs['mae'])
 
